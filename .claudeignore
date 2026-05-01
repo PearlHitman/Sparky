@@ -1,0 +1,6 @@
+node_modules
+session-data
+debug-inbox.html
+debug-inbox.png
+*.log
+.git

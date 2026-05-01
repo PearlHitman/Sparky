@@ -1,0 +1,16 @@
+{
+  "name": "spark-scraper",
+  "version": "1.0.0",
+  "description": "Instagram DM and contact scraper skeleton.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "playwright": "^1.55.0"
+  }
+}

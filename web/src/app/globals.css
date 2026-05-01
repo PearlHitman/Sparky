@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+:root {
+  --color-bg: #14120e;
+  --color-fg: #f5f1ea;
+  --color-accent: #f08a4d;
+  --color-muted: #8a8275;
+  --color-border: #2a2620;
+}
+
+html,
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+}

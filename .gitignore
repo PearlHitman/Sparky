@@ -1,0 +1,13 @@
+node_modules/
+.env
+*.cookies.json
+*.session.json
+cookies/
+sessions/
+playwright/.auth/
+session-data/
+.agents/
+.claude/
+debug-inbox.html
+debug-inbox.png
+*.log
