@@ -1,95 +1,85 @@
-# Spark Scraper
+# Sparky
 
-A self-hosted tool that syncs your Instagram DMs to a Supabase database.
-You run it on your own machine, it logs into **your** Instagram account, and reads **your** conversations.
-No Instagram API keys needed. Fully open source.
+**Your Instagram DMs. Your way. Your server.**
+
+Sparky is a self-hosted Instagram DM client. It scrapes your inbox using browser automation, stores everything in your own Supabase database, and gives you a clean messaging UI to read and reply — no Instagram app required.
+
+No Meta API. No third-party servers. No algorithm. Just your conversations, in a UI you control.
+
+---
+
+## Why
+
+Instagram's DM experience is buried inside an app designed to keep you scrolling. There's no desktop-first client, no way to export your messages, and no open API for your own data.
+
+Sparky flips that. You run it, you own the data, you read and reply from a minimal interface that gets out of the way.
+
+---
 
 ## What It Does
 
-Spark Scraper automates this flow:
-
-```text
+```
 Instagram Web (your account)
-          |
-          v
- Playwright browser session
- (login + inbox scraping)
-          |
-          v
-   Spark Scraper loop
- (conversations/messages/contacts)
-          |
-          v
-   Supabase PostgreSQL
- (spark_users, conversations, messages, contacts)
+          │
+          ▼
+  Playwright browser session
+  (login + inbox scraping)
+          │
+          ▼
+    Supabase PostgreSQL
+(conversations · messages · contacts)
+          │
+          ▼
+    Spark Web UI
+  (inbox · thread view · send)
 ```
 
-In plain terms, it:
-- logs in to Instagram with your credentials
-- keeps a persistent session so you usually do not need to log in every run
-- reads your inbox conversations and messages
-- syncs data into Supabase tables on a recurring interval
+- Logs into Instagram with your credentials and keeps a persistent session
+- Scrapes your inbox on a configurable interval (default: 45–90 min)
+- Syncs conversations, messages, and contacts to Supabase
+- Serves a real-time web UI where you can read threads and send replies
+- Sends messages back through the same Playwright session
 
-## Requirements
+---
 
-- Node.js `18+`
-- npm (comes with Node.js)
-- A Supabase account/project
-- An Instagram account you control
+## Stack
 
-## Setup (Beginner Friendly)
+| Layer | Tech |
+|-------|------|
+| Scraper | Node.js + Playwright |
+| Database | Supabase (PostgreSQL + Realtime) |
+| Web UI | Next.js (App Router) + Tailwind |
+| Backend API | Express |
 
-### 1) Clone the repo
+---
+
+## Setup
+
+### 1. Clone
 
 ```bash
-git clone <your-repo-url>
-cd spark-scraper
+git clone https://github.com/PearlHitman/Sparky.git
+cd Sparky
 ```
 
-### 2) Install dependencies
+### 2. Install dependencies
 
 ```bash
 npm install
+cd web && npm install && cd ..
 ```
 
-### 3) Create your environment file
-
-Copy `.env.example` to `.env`:
-
-```bash
-cp .env.example .env
-```
-
-On Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Then edit `.env`:
-
-```env
-INSTAGRAM_USERNAME=your_instagram_username
-INSTAGRAM_PASSWORD=your_instagram_password
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_KEY=your_supabase_anon_or_service_role_key
-SCRAPE_INTERVAL_MIN=45
-SCRAPE_INTERVAL_MAX=90
-```
-
-### 4) Set up Supabase tables
+### 3. Create your Supabase tables
 
 Run this SQL in your Supabase SQL editor:
 
 ```sql
--- Users (one row per Instagram account running the scraper)
 create table if not exists public.spark_users (
   id uuid primary key default gen_random_uuid(),
   instagram_username text not null unique,
   updated_at timestamptz not null default now()
 );
 
--- Contacts in the account's DM graph
 create table if not exists public.contacts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.spark_users(id) on delete cascade,
@@ -100,17 +90,16 @@ create table if not exists public.contacts (
   unique (user_id, instagram_username)
 );
 
--- DM threads
 create table if not exists public.conversations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.spark_users(id) on delete cascade,
   instagram_thread_id text not null unique,
   last_message_at timestamptz,
   last_message_preview text,
+  participant_usernames text,
   updated_at timestamptz not null default now()
 );
 
--- Messages in each thread
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.conversations(id) on delete cascade,
@@ -122,66 +111,88 @@ create table if not exists public.messages (
   unique (conversation_id, instagram_message_id)
 );
 
-create index if not exists idx_messages_conversation_id
-  on public.messages(conversation_id);
-
-create index if not exists idx_messages_synced_at
-  on public.messages(synced_at desc);
+create index if not exists idx_messages_conversation_id on public.messages(conversation_id);
+create index if not exists idx_messages_synced_at on public.messages(synced_at desc);
 ```
 
-### 5) Start the scraper
+### 4. Configure environment
+
+Root scraper — copy and fill in `.env`:
+
+```bash
+cp .env.example .env
+```
+
+```env
+INSTAGRAM_USERNAME=your_instagram_username
+INSTAGRAM_PASSWORD=your_instagram_password
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_KEY=your_supabase_anon_key
+SCRAPE_INTERVAL_MIN=45
+SCRAPE_INTERVAL_MAX=90
+```
+
+Web UI — create `web/.env.local`:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SPARK_API_URL=http://localhost:3001
+NEXT_PUBLIC_INSTAGRAM_USERNAME=your_instagram_username
+```
+
+### 5. First run
+
+Start the scraper (opens a visible browser on first launch so you can log in):
 
 ```bash
 npm start
 ```
 
-### 6) Browser opens: log into Instagram
+Complete any Instagram login prompts. After that, sessions are saved and the scraper runs headlessly in the background.
 
-On first run, browser launches in visible mode so you can log in and complete prompts.
+### 6. Start the web UI
 
-### 7) It keeps running automatically
+In a second terminal:
 
-After the first successful session, the scraper reuses `session-data/` and runs in the background loop.
+```bash
+cd web && npm run dev
+```
 
-## Run It 24/7
+Open [http://localhost:3000](http://localhost:3000).
 
-If you want this always-on:
-- run it on a VPS and keep it as a long-running process (PM2, systemd, Docker, etc.)
-- a common low-cost path is the **Oracle Cloud Always Free** VPS tier
-- keep in mind Instagram may still trigger periodic checkpoints, especially from new server IPs
+---
+
+## Running 24/7
+
+For always-on use, run on a VPS and keep processes alive with PM2 or systemd:
+
+```bash
+npm install -g pm2
+pm2 start src/index.js --name sparky-scraper
+pm2 start "npm run start" --name sparky-web --cwd ./web
+pm2 save
+```
+
+Oracle Cloud Always Free tier works well for this. Keep in mind Instagram may trigger periodic login challenges from unfamiliar IPs.
+
+---
 
 ## Troubleshooting
 
-### CAPTCHA or challenge screen appears
+**CAPTCHA or challenge screen** — the scraper pauses and retries. Run headed (`HEADLESS=false`) and solve manually if it keeps happening.
 
-- The scraper pauses and retries later.
-- If it keeps happening, run in headed mode and complete challenge manually.
-- Avoid aggressive scrape intervals.
+**Session expired** — delete `session-data/` and restart. This forces a fresh login.
 
-### Session expired / repeated login failures
+**Inbox elements not found** — Instagram changed their DOM. Update selectors in `src/auth.js` and `src/scraper.js`. Run headed to inspect.
 
-- Delete the `session-data/` folder and restart:
-  - this forces a clean login session
-- confirm `INSTAGRAM_USERNAME` and `INSTAGRAM_PASSWORD` in `.env`
+---
 
-### Scraper suddenly stops finding inbox elements
+## Legal
 
-- Instagram likely changed DOM selectors.
-- Update selectors in `src/auth.js` / `src/scraper.js`.
-- Run headed mode to inspect current UI and adjust locators.
+This tool accesses your own Instagram account and your own data. Depending on your jurisdiction this may relate to data portability rights (e.g. GDPR Art. 20). You are responsible for complying with Instagram's Terms of Service and applicable law.
 
-## Legal Note
-
-This tool is intended for accessing **your own Instagram data** using your own account.
-Depending on your jurisdiction, this can relate to data portability and access rights (for example, GDPR access rights).
-You are responsible for complying with Instagram Terms and local laws when using this software.
-
-## Contributing
-
-Contributions are welcome:
-- open an issue for bugs or feature requests
-- open a PR with a clear description and testing notes
-- keep changes focused and easy to review
+---
 
 ## License
 
