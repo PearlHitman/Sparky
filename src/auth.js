@@ -136,6 +136,25 @@ async function dismissOnetapIfPresent(page) {
   return true;
 }
 
+async function dismissCookieBanner(page) {
+  try {
+    const dismissed = await clickIfVisible(page, [
+      "Allow all cookies",
+      "Accept all",
+      "Allow All Cookies",
+      "Accept All",
+      "Only allow essential cookies",
+      "Decline optional cookies"
+    ]);
+    if (dismissed) {
+      await randomDelay(1500, 2800);
+      logInfo("Cookie banner dismissed");
+    }
+  } catch (e) {
+    logError(`Cookie banner dismissal failed: ${e.message}`);
+  }
+}
+
 async function loginToInstagram(page) {
   const username = process.env.INSTAGRAM_USERNAME || "";
   const password = process.env.INSTAGRAM_PASSWORD || "";
@@ -147,6 +166,7 @@ async function loginToInstagram(page) {
 
   await page.goto(INSTAGRAM_HOME_URL, { waitUntil: "domcontentloaded" });
   await randomDelay(3133, 4921);
+  await dismissCookieBanner(page);
   await dismissOnetapIfPresent(page);
 
   if (await isLoggedIn(page)) {
@@ -156,6 +176,7 @@ async function loginToInstagram(page) {
 
   await page.goto(INSTAGRAM_LOGIN_URL, { waitUntil: "domcontentloaded" });
   await randomDelay(1117, 1979);
+  await dismissCookieBanner(page);
 
   const usernameInput = page.locator("input[name='username']");
   const passwordInput = page.locator("input[name='password']");
@@ -195,6 +216,7 @@ async function loginToInstagram(page) {
 async function checkSession(page) {
   await page.goto(INSTAGRAM_HOME_URL, { waitUntil: "domcontentloaded" });
   await randomDelay(1207, 2099);
+  await dismissCookieBanner(page);
   await dismissOnetapIfPresent(page);
   return isLoggedIn(page);
 }
