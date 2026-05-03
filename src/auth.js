@@ -178,8 +178,8 @@ async function loginToInstagram(page) {
   await randomDelay(1117, 1979);
   await dismissCookieBanner(page);
 
-  const usernameInput = page.locator("input[name='username']");
-  const passwordInput = page.locator("input[name='password']");
+  const usernameInput = page.locator("input[name='email'], input[name='username']").first();
+  const passwordInput = page.locator("input[name='pass'], input[name='password']").first();
 
   await usernameInput.waitFor({ state: "visible", timeout: 180000 });
   await typeSlowly(usernameInput, username);
